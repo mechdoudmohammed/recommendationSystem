@@ -1,0 +1,82 @@
+[
+    {
+        "nameCategorie": "appliances",
+        "photo": "household-appliance.png"
+    },
+    {
+        "nameCategorie": "car & motorbike",
+        "photo": "racing.png"
+    },
+    {
+        "nameCategorie": "tv, audio & cameras",
+        "photo": "tv-set.png"
+    },
+    {
+        "nameCategorie": "sports & fitness",
+        "photo": "dumbbell.png"
+    },
+    {
+        "nameCategorie": "grocery & gourmet foods",
+        "photo": "grocery.png"
+    },
+    {
+        "nameCategorie": "home & kitchen",
+        "photo": "kitchen.png"
+    },
+    {
+        "nameCategorie": "pet supplies",
+        "photo": "pet-shop.png"
+    },
+    {
+        "nameCategorie": "stores",
+        "photo": "store.png"
+    },
+    {
+        "nameCategorie": "toys & baby products",
+        "photo": "teddy-bear.png"
+    },
+    {
+        "nameCategorie": "kids' fashion",
+        "photo": "baby-clothes.png"
+    },
+    {
+        "nameCategorie": "bags & luggage",
+        "photo": "shopping-bag.png"
+    },
+    {
+        "nameCategorie": "accessories",
+        "photo": "accessory.png"
+    },
+    {
+        "nameCategorie": "women's shoes",
+        "photo": "high-heels.png"
+    },
+    {
+        "nameCategorie": "beauty & health",
+        "photo": "make-up.png"
+    },
+    {
+        "nameCategorie": "men's shoes",
+        "photo": "classic.png"
+    },
+    {
+        "nameCategorie": "women's clothing",
+        "photo": "dress.png"
+    },
+    {
+        "nameCategorie": "industrial supplies",
+        "photo": "engineering.png"
+    },
+    {
+        "nameCategorie": "men's clothing",
+        "photo": "male-clothes.png"
+    },
+    {
+        "nameCategorie": "music",
+        "photo": "musical-note.png"
+    },
+    {
+        "nameCategorie": "home, kitchen, pets",
+        "photo": "home.png"
+    }
+]
