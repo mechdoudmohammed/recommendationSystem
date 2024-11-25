@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Form,UploadFile, File
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional,Dict
 from datetime import datetime
 import product as pd
 import category as ctg
@@ -58,3 +58,34 @@ async def create_category(
         nameCategorie=nameCategorie,
         file=file
     )
+
+# Route for searching products by name
+@app.get("/search_products_by_name/")
+async def search_products_by_name_route(
+    query: str,  # The search query (product name)
+    skip: int = 0,  # Pagination: number of results to skip
+    limit: int = 10  # Pagination: number of results to return
+):
+    # Call the function to search products by name
+    return await pd.search_products_by_name(query=query, skip=skip, limit=limit)
+
+
+# Route for searching products by category
+@app.get("/search_products_by_category/")
+async def search_products_by_category_route(
+    category_name: str,  # The search query (category name)
+    skip: int = 0,  # Pagination: number of results to skip
+    limit: int = 10  # Pagination: number of results to return
+):
+    # Call the function to search products by category
+    return await pd.search_products_by_category(category_name=category_name, skip=skip, limit=limit)
+# Route to get products grouped by category
+
+@app.get("/products_grouped_by_category/")
+async def get_products_grouped_by_category_route(
+    skip: int = 0,  # Pagination: number of results to skip
+    limit: int = 10  # Pagination: number of results to return
+) -> List[Dict]:
+    # Call the function to get products grouped by category
+    products = await pd.get_products_grouped_by_category(skip=skip, limit=limit)
+    return products
