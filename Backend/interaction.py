@@ -6,10 +6,10 @@ import configuration as config
 app = FastAPI()
 
 # Route to add an interaction
-@app.post("/interactions/")
+@app.post("/add_interaction/")
 async def add_interaction(
     user_id: str = Form(...),
-    product_id: str = Form(...),
+    product_id:Optional[str] = Form(None),
     interaction_type: str = Form(...),
     duration: Optional[float] = Form(None),  # Optional duration
     description: Optional[str] = Form(None)
@@ -53,7 +53,7 @@ async def get_interactions(
     interactions = []
     try:
         cursor = (
-            config.interactions_collection.find(query_filter)
+            config.interactions_collection.find()
             .skip(skip)
             .limit(limit)
         )
