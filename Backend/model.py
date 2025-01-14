@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 from collections import defaultdict
 import random
 import configuration as config
+import numpy as np
+
 
 def serialize_data(data: Any) -> Any:
     """
@@ -39,7 +41,7 @@ class ECommerceModel(Model):
             print(f"Creating new agents for user {user_id}")
             #Create a new Client Agent and Recommendation Agent
             agent = ClientAgent(client_agent_key, self, user_id=user_id)
-            recommendation_agent = RecommendationAgent(recommendation_agent_key, self, user_id=user_id)
+            recommendation_agent = RecommendationAgent(recommendation_agent_key, self, user_id=user_id, products_collection=self.products_collection, interactions_collection=self.interactions_collection)
             self.client_agents[client_agent_key] = agent
             self.client_agents[recommendation_agent_key] = recommendation_agent
 
@@ -146,35 +148,66 @@ class ClientAgent(Agent):
         }
 
 class RecommendationAgent(Agent):
-    def __init__(self, unique_id, model, user_id=None):
+    def __init__(self, unique_id, model, user_id=None, products_collection=None, interactions_collection=None):
         super().__init__(unique_id, model)
         self.user_id = user_id
+        self.products_collection = products_collection
+        self.interactions_collection = interactions_collection
+        self.interaction_weights = {
+            "view": 0.1,  # Poids pour une vue
+            "click": 0.3,  # Poids pour un clic
+            "favorite": 0.5,  # Poids pour un favori
+            "purchase": 0.6,  # Poids pour un achat
+            "search": 0.2 #Poids pour une recherche
+        }
         self.interactions = []
-        self.products_collection = config.products_collection
-        self.last_category = None
         self.last_update = datetime.min  # Keep track of when the agent was last updated
         print(f"Recommendation agent {unique_id} initialized for user {user_id}")
 
+    def calculate_product_scores(self):
+         """Calcul les scores des produits en fonction de l'historique d'interaction."""
+         product_scores = defaultdict(float)
+         user_interactions = self.get_user_interactions_from_db()
+
+         for interaction in user_interactions:
+                product_id = interaction["product_id"]
+                interaction_type = interaction["interaction_type"]
+                weight = self.interaction_weights.get(interaction_type, 0)
+
+                if interaction_type == "view":
+                  duration = interaction.get("duration",0)
+                  weight *= (1 + duration/300)
+                product_scores[product_id] += weight
+         return product_scores
 
     def process_interactions(self, interactions):
         """
-        Mise à jour des interactions du client et détermination de la catégorie.
+        Mise à jour des interactions du client.
         """
         print(f"Recommendation agent {self.unique_id} processing interactions: {interactions}")
-        for interaction in interactions:
-             self.interactions.append(interaction)
-             if 'product_id' in interaction and interaction['product_id']:
-                product_info = self.get_products_info([interaction['product_id']])
-                if product_info:
-                    self.last_category = product_info[0].get('category')
-
+        self.interactions.extend(interactions)
         self.last_update = datetime.utcnow()
-        print(f"Recommendation agent {self.unique_id} updated. Last update: {self.last_update}, last category: {self.last_category}")
+        print(f"Recommendation agent {self.unique_id} updated. Last update: {self.last_update}")
+
+
+    def get_user_interactions_from_db(self) -> List[dict]:
+         """récupère les interactions de l'utilisateur depuis la base de données."""
+         print(f"Recommendation agent {self.unique_id} getting interactions for user {self.user_id}")
+         interactions = []
+         try:
+             interactions = list(self.interactions_collection.find({"user_id": self.user_id}))
+             print(f"Recommendation agent {self.unique_id} found {len(interactions)} interactions in db")
+             for inter in interactions:
+                inter["_id"] = str(inter["_id"])
+         except Exception as e:
+            print(f"Error fetching user interaction from MongoDB : {e}")
+         return interactions
+
 
     def get_data(self):
         """Returns the agent data (e.g. recommended products)."""
         print(f"Recommendation agent {self.unique_id} getting data")
-        recommended_products = self.recommend_products(3)
+        recommended_products = self.recommend_products(8)
 
         return {
             "user_id": self.user_id,
@@ -183,50 +216,96 @@ class RecommendationAgent(Agent):
             ] if recommended_products else [],
             "interaction_history": self.interactions,
             "type": "recommendation_agent",
-            "last_update": self.last_update
+             "last_update": self.last_update
         }
 
-
     def recommend_products(self, num_recommendations):
-         """
-            Recommends products from the last viewed category randomly
-            Args:
-                num_recommendations (int): The number of recommendations to make.
-         """
-         print(f"Recommendation agent {self.unique_id} recommending products. Last category: {self.last_category}")
-         if not self.last_category:
-             print(f"No last category. returning empty recommendations")
-             return []
+        """Recommande des produits en fonction de l'historique des interactions."""
+        print(f"Recommendation agent {self.unique_id} recommending products for user {self.user_id}.")
 
-         # Fetch all products in the same category
-         products_info = self.get_products_by_category(self.last_category)
-         if not products_info:
-            print(f"No products found in category {self.last_category}. returning empty recommendations")
+        user_interactions = self.get_user_interactions_from_db()
+        if not user_interactions:
+            print(f"No interaction found for user {self.user_id}. Returning empty recommendations.")
             return []
 
-         if len(products_info) <= num_recommendations:
-             print(f"Found {len(products_info)} product(s) matching the category {self.last_category}. returning {len(products_info)} recommendations")
-             return products_info
+        # Récupérer les produits déjà achetés et leurs catégories
+        purchased_products_info = []
+        purchased_categories = set()
+        for interaction in user_interactions:
+            if interaction["interaction_type"] == "purchase":
+                product_info = self.get_products_info(interaction["product_id"])
+                if product_info:
+                    purchased_products_info.append(product_info[0])
+                    purchased_categories.add(product_info[0]["category"])
+        # Récupérer les catégories des produits vus ou favoris (éviter d'utiliser des produits achetés)
+        categories = set()
+        for interaction in user_interactions:
+            if interaction["interaction_type"] in ["view", "favorite"] :
+                 product_info = self.get_products_info(interaction["product_id"])
+                 if product_info:
+                     categories.add(product_info[0]["category"])
+        
+        # Ajouter les categories des produits achetés
+        categories.update(purchased_categories)
 
-         # Return a random selection of products
-         recommendation = random.sample(products_info, num_recommendations)
-         print(f"Found {len(products_info)} product(s) matching the category {self.last_category}. returning {num_recommendations} recommendations {recommendation}")
-         return recommendation
+
+        if not categories:
+            print(f"No categories found for user {self.user_id}. Returning empty recommendations.")
+            return []
+        
+        #Récupérer tous les produits de toutes les categories
+        all_products_to_recommend = []
+        for category in categories:
+            products_in_category = self.get_products_by_category(category)
+            if products_in_category:
+                 # Filtrer les produits en excluant ceux déjà achetés
+                  products_to_recommend = [
+                        product
+                        for product in products_in_category
+                        if product not in purchased_products_info
+                    ]
+                  all_products_to_recommend.extend(products_to_recommend)
+
+        if not all_products_to_recommend:
+             print(f"No products to recommend after filtering. Returning empty recommendations")
+             return []
+        
+        # Calculer les scores pour les produits
+        product_scores = self.calculate_product_scores()
+        print(f"les score {product_scores}")
+        # Assigner un score à chaque produit
+        scored_products = []
+        for product in all_products_to_recommend:
+            score = product_scores.get(product["_id"], 0)  # Récupérer le score du produit, 0 si non trouvé
+            scored_products.append((product, score))
+
+        # Trier les produits par score en ordre décroissant
+        sorted_products = sorted(scored_products, key=lambda item: item[1], reverse=True)
+
+        # Sélectionner les num_recommendations meilleurs produits
+        recommendations = [product for product, score in sorted_products[:num_recommendations]]
+
+        if len(recommendations) < num_recommendations:
+            print(f"Found {len(recommendations)} product(s) matching the categories. returning {len(recommendations)} recommendations")
+            print(f"Returning {len(recommendations)} product recommendations: {[product['_id'] for product in recommendations]}")
+        else:
+            print(f"Found {len(all_products_to_recommend)} product(s) matching the categories. returning {num_recommendations} recommendations {[prod['_id'] for prod in recommendations]}")
+        return recommendations
 
 
-    def get_products_info(self, product_ids: List[str]) -> List[dict]:
+    def get_products_info(self, product_id: str) -> List[dict]:
         """
-        Récupère les informations des produits depuis MongoDB à partir de leurs IDs.
+        Récupère les informations d'un produit depuis MongoDB à partir de son ID.
         """
-        print(f"Recommendation agent {self.unique_id} getting products info for {product_ids}")
+        print(f"Recommendation agent {self.unique_id} getting product info for {product_id}")
         products_info = []
 
-        if not product_ids:
-             print("No product ids provided. returning empty products")
+        if not product_id:
+             print("No product id provided. returning empty products")
              return products_info
 
         try:
-            products_info = list(self.products_collection.find({"_id": {"$in": [ObjectId(id) for id in product_ids]}}))
+            products_info = list(self.products_collection.find({"_id": ObjectId(product_id)}))
             for prod in products_info:
                 prod["_id"] = str(prod["_id"])
         except Exception as e:
@@ -235,7 +314,6 @@ class RecommendationAgent(Agent):
 
         print(f"Returning product info from mongodb: {products_info}")
         return products_info
-
 
     def get_products_by_category(self, category: str) -> List[dict]:
         """
