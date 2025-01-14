@@ -114,6 +114,12 @@ async def search_products_by_name_route(
 ):
     return await pd.search_products_by_name(query=query, skip=skip, limit=limit)
 
+@app.get("/search_product_by_id/")
+async def search_product_by_id_route(product_id: str):
+    return await pd.search_product_by_id(product_id=product_id)
+
+
+
 # Route for searching products by category
 @app.get("/search_products_by_category/")
 async def search_products_by_category_route(
@@ -163,6 +169,7 @@ async def get_interactions(
         limit=limit
     )
 
+
 @app.post("/login/")
 async def login_for_access_token(
     email: str = Form(...),
@@ -178,9 +185,13 @@ async def login_for_access_token(
     if not config.verify_password(password, user["password"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
+    # Convertir l'ObjectId en chaîne
+    user["_id"] = str(user["_id"])
+    
     # Créer le token JWT
     access_token = config.create_access_token(data={"sub": user["email"]})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "user": user}
+
 
 #multi agent commance ici
 

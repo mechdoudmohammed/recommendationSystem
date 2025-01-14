@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Form,UploadFile, File
 from typing import List, Optional
 from datetime import datetime
 import configuration as config
+from bson import ObjectId
 
 async def add_product(
     name: str = Form(...),
@@ -80,6 +81,25 @@ async def search_products_by_name(query: str, skip: int = 0, limit: int = 10):
         products.append(product)
 
     return products
+
+# Fonction pour rechercher un produit par ID
+async def search_product_by_id(product_id: str):
+    try:
+        # Vérifier que l'ID est valide
+        object_id = ObjectId(product_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid product ID format")
+    
+    # Rechercher le produit par son ID
+    product = config.products_collection.find_one({"_id": object_id})
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Convertir ObjectId en chaîne pour la sérialisation
+    product["_id"] = str(product["_id"])
+    return product
+
 async def search_products_by_category(category_name: str, skip: int = 0, limit: int = 10):
     # Create a condition for category search (case-insensitive)
     category_condition = {"category": {"$regex": category_name, "$options": "i"}}
