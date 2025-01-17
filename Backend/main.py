@@ -8,6 +8,7 @@ import configuration as config
 import user as usr
 from fastapi.middleware.cors import CORSMiddleware
 from model import ECommerceModel  # Importez votre modèle ici
+import interaction as itn
 
 app = FastAPI()
 
@@ -105,15 +106,9 @@ async def create_category(
 ):
     return await ctg.add_category(nameCategorie=nameCategorie, file=file)
 
-# Route for searching products by name
-@app.get("/search_products_by_name/")
-async def search_products_by_name_route(
-    query: str,
-    skip: int = 0,
-    limit: int = 10
-):
-    return await pd.search_products_by_name(query=query, skip=skip, limit=limit)
 
+
+# Route for searching products by id
 @app.get("/search_product_by_id/")
 async def search_product_by_id_route(product_id: str):
     return await pd.search_product_by_id(product_id=product_id)
@@ -240,10 +235,33 @@ async def get_recommendations(request: RecommendationRequest):
         return {"user_id": user_id, "recommendations": recommendations}
     except Exception as e:
       print(f"Error retrieving recommendations: {e}")
-      raise HTTPException(status_code=500, detail=f"Error retrieving recommendations: {e}")
+      raise HTTPException(status_code=404, detail=f"Error retrieving recommendations: {e}")
     
+class SearchProductByNameRequest(BaseModel):
+    user_id: str
+    query: str
+    skip: int = 0
+    limit: int = 10
 
+@app.post("/simulation/search_products_by_name/")
+async def search_products_by_name_route(request: SearchProductByNameRequest):
+        """
+        Endpoint pour rechercher des produits par nom en utilisant l'agent Search.
+        """
+        try:
+            user_id = request.user_id
+            query = request.query
+            skip = request.skip
+            limit = request.limit
 
+            search_results = model.get_user_search_results(user_id, query)
+            if search_results is None:
+                raise HTTPException(status_code=404, detail="Search agent not found for user")
+            
+            return {"user_id": user_id, "query": query, "results": search_results}
+        except Exception as e:
+            print(f"Error retrieving search results: {e}")
+            raise HTTPException(status_code=500, detail=f"Error retrieving search results: {e}")
     
 
 @app.get("/simulation/agents")
@@ -257,4 +275,3 @@ async def get_agents():
     except Exception as e:
         print(f"Error retrieving agents data: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving agents data: {e}")
-        
